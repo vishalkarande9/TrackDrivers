@@ -48,13 +48,13 @@
 
 #### Steps to run the program:
 
-$ cd TrackDrivers
-$ npm install
-$ node main.js (Input filePath)
-**Example** $ node main.js ./inputFiles/input1.txt
+- $ cd TrackDrivers
+- $ npm install
+- $ node main.js (Input filePath)
+- **Example** $ node main.js ./inputFiles/input1.txt
 
 #### Steps to run the tests:
 
-$ cd TrackDrivers
-$ npm test
+- $ cd TrackDrivers
+- $ npm test
     
