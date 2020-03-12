@@ -6,6 +6,7 @@ class Report{
         this.calculateAvgSpeed();
     }
 
+    //calculates average speed 
     calculateAvgSpeed(){
         if(!(this.totalMiles && this.totalTime)){
             this.totalMiles = 0;
@@ -18,5 +19,4 @@ class Report{
     }
 }
 
-// now we export the class, so other modules can create Report objects
 module.exports = Report;

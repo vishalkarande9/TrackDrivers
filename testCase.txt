@@ -1,0 +1,19 @@
+1) processInputFile 
+    1) if no file path is provided in args
+    2) when wrong path is provided
+
+2) separateCommands
+    1) (ignore commands which do not contain trip ot driver)
+
+3) registerDriverOutput
+    1) (ignores all the drivers commands which are not in correct format)
+
+4) recordTrip
+    1) (ignores all the Trip commands which are not in correct format) 
+    2) Assume times will be given in format of hours:minutes and that start time will always be before the end time   
+
+5) generateReport
+    1) here there wont be any trip whose totalmiles can be 0 as it will be discared in previous function
+
+6) sortReport
+    1) Sorts the output by the most miles driven           

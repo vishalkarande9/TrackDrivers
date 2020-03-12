@@ -1,14 +1,16 @@
 {
-  "name": "y",
+  "name": "trackdrivers",
   "version": "1.0.0",
   "description": "",
   "main": "main.js",
   "dependencies": {
     "fs": "^0.0.1-security"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "jest": "^25.1.0"
+  },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest"
   },
   "author": "",
   "license": "ISC"

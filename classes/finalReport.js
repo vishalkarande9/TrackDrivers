@@ -7,6 +7,7 @@ class FinalReport{
         this.renderOutput();
     }
 
+    //rounds miles and miles per hour to the nearest integer
     roundUpValues(){
         this.totalMiles = Math.round(this.totalMiles);
         this.avgSpeed = Math.round(this.avgSpeed);
@@ -21,5 +22,4 @@ class FinalReport{
     }
 }
 
-// now we export the class, so other modules can create FinalReport objects
 module.exports = FinalReport;

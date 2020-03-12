@@ -1,123 +1,164 @@
-const {readFile, createWriteStream} = require('fs'); 
-const SplitData = require('../classes/splitData');
+const {readFileSync} = require('fs'); 
 const Trip = require('../classes/trip');
 const Report = require('../classes/report');
 const FinalReport = require('../classes/finalReport');
-const Error = require('../classes/error');
+const appConstants = require('../utils/appConstants');
 
 
-function processInputFile(filePath){
-    return new Promise((resolve,reject) => {
-        readFile(filePath, 'utf8', function(err, data) {
-            if (!err) {
-                let output =  data.toString().split('\n');
-                if(output.length === 1 && output[0]===''){
-                    let error = new Error('failedInProcessInputFile','Input File provided is empty');
-                    return reject(error);
-                } 
-                return resolve(output);
-            } else {
-                let error = new Error('failedInProcessInputFile', err);
-                return reject(error);
-            }
-          });
-    })
+function error(messageCode, message){
+    return {
+        statusCode: 400,
+        type: 'error',
+        messageCode: messageCode,
+        message: message
+    }
 }
 
+function success(data){
+    return {
+        statusCode: 200,
+        type: 'success',
+        data: data
+    }
+} 
 
+
+// reads input txt file and generates array of commands
+exports.readInputFile = (filePath) => {
+        if(!filePath){
+            return error('inputFileEmpty', 'Path not provided for the input file');  
+        }
+        try{
+            let data = readFileSync(filePath);
+            readFileOutput =  data.toString().split('\n');
+            if(readFileOutput.length === 1 && readFileOutput[0]===''){
+                return error('inputFileEmpty', 'Input File provided is empty');
+            } 
+            return separateCommands(readFileOutput);
+
+
+        } catch(err) {
+            return error('inputFileEmpty', err);
+        }
+}
+
+// separates Drivers and Trip commands
 function separateCommands(commandArr){
-    return new Promise((resolve,reject) => {
         try{
             let driverCommands = [];
             let tripCommands = [];
             for(let i=0; i<commandArr.length;i++){
-                let command = commandArr[i];
-                if(command.includes("Driver") && !command.includes("Trip")){
+                let command = commandArr[i].trim();
+                if(command.length === 0){
+                    continue;
+                }
+                if(command.includes(appConstants.DRIVER_COMMAND)){
                     driverCommands.push(command);       
-                } else{
+                } else if(command.includes(appConstants.TRIP_COMMAND)) {
                     tripCommands.push(command);
                 }
             }
-            let output = [driverCommands,tripCommands];
-            return resolve(output);
+            // let separateCommandsOutput = [driverCommands,tripCommands];
+            if(driverCommands.length === 0 && tripCommands.length === 0){
+                return error('inputFileEmpty', 'Input File provided is empty');
+            }
+            return registerDriver({}, driverCommands, tripCommands);
         } 
         catch(err){
-            let error = new Error('failedInSeparateCommands', err);
-            return reject(error);
+            return error('failedInSeparateCommands', err);
         }
-    })
 }
 
+// checks if the commad is in proper format. returns true if it in proper format else return false
+function validateCommand(commandArr,commandType){
+    if(commandType === 'Driver'){
+        if(
+            commandArr.length === appConstants.DRIVER_COMMAND_LENGTH &&
+            commandArr[0] === appConstants.DRIVER_COMMAND &&
+            typeof(commandArr[1]) === 'string'
+        ){
+            return true;
+        }
+        return false;
+    } else{
+        if(
+            commandArr.length === appConstants.TRIP_COMMAND_LENGTH &&
+            commandArr[0] === appConstants.TRIP_COMMAND &&
+            typeof(commandArr[1]) === 'string' &&
+            (typeof(commandArr[2]) === 'string' && commandArr[2].includes(':')) &&
+            (typeof(commandArr[3]) === 'string' && commandArr[3].includes(':')) &&
+            (typeof(commandArr[4]) === 'string' && parseInt(commandArr[4]) >= 0)
+        ){
+            return true;
+        }
+        return false;
+    }
+}
 
-function registerDriver(mainObj,driverCommands){
-    return new Promise((resolve,reject) => {
+// adds driver name as key to the main object
+function registerDriver(mainObj, driverCommands, tripCommands){
         try{
             for (const command of driverCommands){
-                let splitData = new SplitData(command," ");
-                let res = splitData.res;
-                let name = res[1];
-                mainObj[name] = {};
+                let res = command.split(appConstants.COMMAND_SEPARATOR);
+                if(validateCommand(res,appConstants.DRIVER_COMMAND)){
+                    let name = res[1];
+                    mainObj[name] = {};
+                }
             }
-            return resolve(mainObj);
+            return addTrip(mainObj, tripCommands);
         } catch(err){
-            let error = new Error('failedInRegisterDriver', err);
-            return reject(error);        
+            return error('failedInRegisterDriver', err);        
         }
-    })
 }
 
-
+// maintains running total of miles driven and trip time
 function maintainRunningSum(newTrip, mainObj){
 
-    if(mainObj[newTrip.driverName]['totalMiles']){
-        // when trip obj already exists
-        mainObj[newTrip.driverName]['totalMiles'] += newTrip.milesDriven;
-        mainObj[newTrip.driverName]['totalTime'] += newTrip.tripTime;
-    } else {
-        // for new trip obj
-        mainObj[newTrip.driverName]['driverName'] = newTrip.driverName;
-        mainObj[newTrip.driverName]['totalMiles'] = newTrip.milesDriven;
-        mainObj[newTrip.driverName]['totalTime'] = newTrip.tripTime;
+    if(mainObj[newTrip.driverName]){
+        if(mainObj[newTrip.driverName]['totalMiles']){
+            // when trip obj already exists
+            mainObj[newTrip.driverName]['totalMiles'] += newTrip.milesDriven;
+            mainObj[newTrip.driverName]['totalTime'] += newTrip.tripTime;
+        } else {
+            // for new trip obj
+            mainObj[newTrip.driverName]['driverName'] = newTrip.driverName;
+            mainObj[newTrip.driverName]['totalMiles'] = newTrip.milesDriven;
+            mainObj[newTrip.driverName]['totalTime'] = newTrip.tripTime;
+        }
     }
     return mainObj;
 }
 
-
-function recordTrip(mainObj,tripCommands){
-    return new Promise((resolve,reject) => {
+// adds trip info as object to the corresponding driver
+function addTrip (mainObj,tripCommands){
         try{
             for (const command of tripCommands){
-                let splitData = new SplitData(command," ");
-                let res = splitData.res;
-                // here I am assuming that the trip command will have 4 parameters
-                let trip =  new Trip(res[1],res[2],res[3],res[4]);
-                if(!trip.discardTrip){
-                    mainObj = maintainRunningSum(trip,mainObj);            
+                let res = command.split(appConstants.COMMAND_SEPARATOR);
+                if(validateCommand(res, 'Trip')){
+                    let trip =  new Trip(res[1],res[2],res[3],res[4]);
+                    if(!trip.discardTrip){
+                        mainObj = maintainRunningSum(trip,mainObj);            
+                    }
                 }
             }
-            return resolve(mainObj);
+            return generateReport(mainObj);
         } catch(err){
-            let error = new Error('failedInRecordTrip', err);
-            return reject(error);
+            return error('failedInAddTrip', err);
         }
-    }) 
 }
 
-
+// loops through every driver key in the main object and calls Report class method to calculate average speed for each driver
 function generateReport(mainObj){
-    return new Promise((resolve,reject) => {
         try{
             let reportArr = [];
             for (const key in mainObj){
                 const report = new Report(mainObj[key],key);
                 reportArr.push(report);
             }
-            return resolve(reportArr);
+            return sortReport(reportArr);
         } catch(err){
-            let error = new Error('failedInGenerateReport', err);
-            return reject(error);
+            return error('failedInGenerateReport', err);
         }
-    }) 
 }
 
 function compareTotalMiles(a,b){
@@ -130,59 +171,30 @@ function compareTotalMiles(a,b){
     }
 }
 
-function sortReport(report){
-    return new Promise((resolve,reject) => {
+// sorts the data by most miles driven to least
+function sortReport(report) {
         try{
             report = report.sort(compareTotalMiles);
-            return resolve(report);
+            return finalReport(report);
         } catch(err){
-            let error = new Error('failedInSortReport', err);
-            return reject(error);
-        }
-    }) 
+            return error('failedInSortReport', err);
+        } 
 }
 
-function finalReport(sortedReport){
-    return new Promise((resolve,reject) => {
+// returns the generated report
+function finalReport(sortedReport) {
         try{
             let expectedOutput=[];
             for(const item of sortedReport){
                 let finalReport = new FinalReport(item);
                 expectedOutput.push(finalReport.output);
             }
-            return resolve(expectedOutput);
+            return success(expectedOutput);
         } catch(err){
-            let error = new Error('failedInFinalReport', err);
-            return reject(error);
+            return error('failedInFinalReport', err);
         }
-
-    }) 
 }
 
-function createFile(expectedOutput){
-    return new Promise((resolve,reject) => {
-        let file = createWriteStream('output.txt');
-        file.on('error', function(err){
-            let error = new Error('failedInCreateFile', err);
-            return reject(error);
-        })
-        expectedOutput.forEach(value => file.write(`${value}\r\n`));
-        file.on('finish',()=>{
-            return resolve();
-        });
-        // close the stream
-        file.end();
-       
-    })
-}
 
-module.exports.processInputFile = processInputFile;
-module.exports.separateCommands = separateCommands;
-module.exports.registerDriver = registerDriver;
-module.exports.recordTrip = recordTrip;
-module.exports.generateReport = generateReport;
-module.exports.sortReport = sortReport;
-module.exports.finalReport = finalReport;
-module.exports.createFile = createFile;
 
 
